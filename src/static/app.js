@@ -4,14 +4,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
 
-  // helper: generate simple initials from an email or name
-  function getInitials(str) {
-    const name = String(str).split("@")[0];
-    const parts = name.split(/[\.\-_]/).filter(Boolean);
-    const a = (parts[0] && parts[0][0]) ? parts[0][0].toUpperCase() : "";
-    const b = (parts[1] && parts[1][0]) ? parts[1][0].toUpperCase() : "";
-    return (a + b) || (name[0] || "").toUpperCase();
-  }
   
   // helper: normalize participant to an email/name string
   function participantLabel(p) {
@@ -21,6 +13,29 @@ document.addEventListener("DOMContentLoaded", () => {
       return p.email || p.name || p.id || JSON.stringify(p);
     }
     return String(p);
+  }
+
+  // Function to unregister a participant from an activity
+  async function unregisterParticipant(activityName, email, liElement) {
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activityName)}/unregister?email=${encodeURIComponent(email)}`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (response.ok) {
+        // Refresh the activities list so UI reflects the change
+        await fetchActivities();
+      } else {
+        const result = await response.json();
+        alert(result.detail || "Failed to unregister participant");
+      }
+    } catch (error) {
+      alert("Error unregistering participant");
+      console.error("Error unregistering:", error);
+    }
   }
 
   // Function to fetch activities from API
@@ -73,16 +88,22 @@ document.addEventListener("DOMContentLoaded", () => {
             const label = participantLabel(p);
             const li = document.createElement("li");
 
-            const avatar = document.createElement("span");
-            avatar.className = "participant-avatar";
-            avatar.textContent = getInitials(label);
-
             const emailSpan = document.createElement("span");
             emailSpan.className = "participant-email";
             emailSpan.textContent = label;
-
-            li.appendChild(avatar);
             li.appendChild(emailSpan);
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "delete-participant-btn";
+            deleteBtn.setAttribute("type", "button");
+            deleteBtn.setAttribute("aria-label", `Remove ${label}`);
+            deleteBtn.innerHTML = "&#x2717;";
+            deleteBtn.addEventListener("click", (e) => {
+              e.preventDefault();
+              unregisterParticipant(name, label, li);
+            });
+            li.appendChild(deleteBtn);
+
             ul.appendChild(li);
           });
           participantsContainer.appendChild(ul);
@@ -130,6 +151,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // Refresh activities so the new participant appears immediately
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
